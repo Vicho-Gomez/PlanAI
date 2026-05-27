@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlanIA — Horario inteligente</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Geist+Mono:wght@300;400;500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream: #f5f0e8;
+  --paper: #faf8f3;
+  --ink: #1a1410;
+  --ink2: #3d3530;
+  --ink3: #7a7068;
+  --rule: #e2dcd0;
+  --accent: #c84b2f;
+  --accent2: #f0a070;
+  --blue: #2d5a8e;
+  --green: #3a7d44;
+  --amber: #c8820a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Instrument Sans', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+/* ── PAPER TEXTURE ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(0,0,0,.03) 28px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='.025'/%3E%3C/svg%3E");
+}
+
+/* ── LAYOUT ── */
+.shell {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+header {
+  grid-column: 1 / -1;
+  background: var(--ink);
+  color: var(--cream);
+  padding: 18px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 3px solid var(--accent);
+}
+
+.logo-wrap { display: flex; align-items: baseline; gap: 10px; }
+.logo-text {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+}
+.logo-sub {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  color: var(--accent2);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.header-time {
+  font-family: 'Geist Mono', monospace;
+  font-size: 13px;
+  color: rgba(245,240,232,.5);
+  display: flex; align-items: center; gap: 16px;
+}
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  animation: blink 2s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--paper);
+  border-right: 1px solid var(--rule);
+  padding: 32px 28px;
+  overflow-y: auto;
+  max-height: calc(100vh - 65px);
+  position: sticky;
+  top: 65px;
+}
+
+.sidebar-section { margin-bottom: 32px; }
+
+.sidebar-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Form elements */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink2);
+  letter-spacing: .5px;
+  margin-bottom: 5px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  background: var(--cream);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200,75,47,.1);
+}
+
+.field textarea { resize: vertical; min-height: 80px; }
+
+select option { background: var(--paper); }
+
+/* Tag input */
+.tag-box {
+  background: var(--cream);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px;
+  display: flex; flex-wrap: wrap; gap: 5px;
+  cursor: text; transition: border-color .2s;
+  min-height: 42px;
+}
+.tag-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,75,47,.1); }
+.tag-pill {
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: flex; align-items: center; gap: 5px;
+}
+.tag-pill .rm { cursor: pointer; opacity: .6; font-size: 10px; }
+.tag-pill .rm:hover { opacity: 1; }
+.tag-inner-input {
+  border: none; background: transparent; outline: none;
+  font-family: inherit; font-size: 13px;
+  color: var(--ink); min-width: 80px; flex: 1; padding: 2px 4px;
+}
+
+/* Generate button */
+.btn-gen {
+  width: 100%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 14px;
+  font-family: 'DM Serif Display', serif;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px;
+}
+.btn-gen:hover { background: #a83a20; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(200,75,47,.3); }
+.btn-gen:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── MAIN CONTENT ── */
+.main {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: calc(100vh - 65px);
+}
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.empty-illustration {
+  width: 180px; height: 180px;
+  margin: 0 auto 32px;
+  position: relative;
+}
+
+/* Animated notebook illustration */
+.nb-page {
+  width: 140px; height: 180px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 4px 12px 12px 4px;
+  position: absolute; left: 20px; top: 0;
+  display: flex; flex-direction: column;
+  padding: 16px 14px;
+  gap: 8px;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.nb-line {
+  height: 2px; border-radius: 1px;
+  animation: drawLine 1.5s ease both;
+}
+@keyframes drawLine { from{width:0} to{width:100%} }
+.nb-line:nth-child(1){background:var(--accent);width:60%;animation-delay:.2s}
+.nb-line:nth-child(2){background:var(--rule);animation-delay:.4s}
+.nb-line:nth-child(3){background:var(--rule);animation-delay:.6s;width:80%}
+.nb-line:nth-child(4){background:var(--blue);width:50%;animation-delay:.8s}
+.nb-line:nth-child(5){background:var(--rule);animation-delay:1s}
+.nb-line:nth-child(6){background:var(--green);width:70%;animation-delay:1.2s}
+.nb-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  position: absolute;
+  animation: popIn .4s ease both;
+}
+@keyframes popIn { from{transform:scale(0)} to{transform:scale(1)} }
+.nb-dot:nth-child(7){top:24px;right:12px;animation-delay:1.4s}
+
+.empty-state h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px; margin-bottom: 10px;
+  letter-spacing: -0.5px;
+}
+.empty-state p { font-size: 14px; color: var(--ink3); line-height: 1.65; max-width: 340px; }
+
+/* ── LOADING ── */
+.loading-wrap {
+  display: none;
+  flex: 1;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px;
+  padding: 60px;
+  text-align: center;
+}
+.loading-wrap.active { display: flex; }
+
+.loading-pen {
+  font-size: 40px;
+  animation: write 1s ease-in-out infinite alternate;
+}
+@keyframes write { from{transform:rotate(-10deg) translateX(-10px)} to{transform:rotate(10deg) translateX(10px)} }
+
+.loading-txt {
+  font-family: 'DM Serif Display', serif;
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink2);
+}
+.loading-sub { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--ink3); letter-spacing: 1px; }
+
+/* ── SCHEDULE VIEW ── */
+.schedule-view {
+  display: none;
+  padding: 36px 40px;
+  flex: 1;
+}
+.schedule-view.active { display: block; animation: slideUp .4s ease both; }
+@keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+/* AI analysis pill */
+.analysis-pill {
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 28px;
+  display: flex; gap: 16px; align-items: flex-start;
+}
+.analysis-icon { font-size: 24px; flex-shrink: 0; }
+.analysis-title {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent2); margin-bottom: 6px;
+}
+.analysis-text { font-size: 13px; line-height: 1.65; color: rgba(245,240,232,.85); }
+
+/* Stats row */
+.stats-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 12px; margin-bottom: 28px;
+}
+.stat-box {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+.stat-n {
+  font-family: 'DM Serif Display', serif;
+  font-size: 32px; color: var(--accent);
+  line-height: 1;
+}
+.stat-lbl { font-size: 11px; color: var(--ink3); margin-top: 4px; line-height: 1.3; }
+
+/* Schedule grid */
+.sched-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 14px;
+}
+
+.week-grid {
+  display: grid;
+  grid-template-columns: 60px repeat(5, 1fr);
+  gap: 0;
+  border: 1px solid var(--ink);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 32px;
+  font-size: 12px;
+}
+
+.wg-header {
+  background: var(--ink);
+  color: var(--cream);
+  padding: 10px 8px;
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.wg-header.today-col { background: var(--accent); }
+.wg-time-col { background: var(--ink); color: rgba(245,240,232,.4); }
+
+.wg-cell {
+  border-left: 1px solid var(--rule);
+  border-top: 1px solid var(--rule);
+  min-height: 62px;
+  position: relative;
+  background: var(--paper);
+  transition: background .15s;
+}
+.wg-cell.time-cell {
+  background: var(--ink);
+  border-left: none;
+  display: flex; align-items: flex-start;
+  justify-content: flex-end;
+  padding: 6px 8px 0 0;
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px;
+  color: rgba(245,240,232,.3);
+}
+
+.event-block {
+  position: absolute; inset: 3px;
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+  z-index: 2;
+  overflow: hidden;
+}
+.event-block:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(0,0,0,.15); z-index: 10; }
+
+.ev-study  { background: #e8f4ea; border: 1.5px solid #3a7d44; }
+.ev-break  { background: #fef3e2; border: 1.5px solid #c8820a; }
+.ev-task   { background: #fce8e4; border: 1.5px solid #c84b2f; }
+.ev-sleep  { background: #e8eef7; border: 1.5px solid #2d5a8e; }
+
+.ev-study .ev-title  { color: #3a7d44; }
+.ev-break .ev-title  { color: #c8820a; }
+.ev-task .ev-title   { color: #c84b2f; }
+.ev-sleep .ev-title  { color: #2d5a8e; }
+
+.ev-time  { font-family: 'Geist Mono', monospace; font-size: 9px; opacity: .6; margin-bottom: 2px; }
+.ev-title { font-size: 11px; font-weight: 600; line-height: 1.2; }
+.ev-sub   { font-size: 10px; opacity: .65; margin-top: 2px; line-height: 1.2; }
+
+/* ── REMINDERS SECTION ── */
+.reminders-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.btn-add-reminder {
+  background: transparent; border: 1px solid var(--accent);
+  color: var(--accent); border-radius: 6px;
+  padding: 6px 14px; font-family: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.btn-add-reminder:hover { background: var(--accent); color: #fff; }
+
+.reminders-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+/* Sticky notes */
+.sticky {
+  border-radius: 4px;
+  padding: 18px 18px 24px;
+  position: relative;
+  cursor: default;
+  animation: stickyIn .4s cubic-bezier(.34,1.56,.64,1) both;
+  box-shadow: 2px 4px 12px rgba(0,0,0,.1), 0 1px 0 rgba(255,255,255,.8) inset;
+  transform-origin: top center;
+}
+.sticky:nth-child(odd)  { transform: rotate(-1.2deg); }
+.sticky:nth-child(even) { transform: rotate(0.8deg); }
+.sticky:hover { transform: rotate(0deg) scale(1.03); box-shadow: 4px 8px 24px rgba(0,0,0,.18); z-index: 5; transition: all .2s; }
+
+@keyframes stickyIn {
+  from { opacity: 0; transform: scale(.6) rotate(-5deg); }
+  to   { transform: rotate(-1.2deg); }
+}
+
+.sticky-yellow { background: #fef08a; }
+.sticky-green  { background: #bbf7d0; }
+.sticky-blue   { background: #bae6fd; }
+.sticky-pink   { background: #fecdd3; }
+.sticky-orange { background: #fed7aa; }
+
+.sticky::before {
+  content: '';
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  width: 40px; height: 12px;
+  background: rgba(0,0,0,.12);
+  border-radius: 2px;
+}
+
+.sticky-time {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; letter-spacing: 1px;
+  color: rgba(0,0,0,.4);
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.sticky-content {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(0,0,0,.75);
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+
+.sticky-subject {
+  font-size: 11px;
+  color: rgba(0,0,0,.45);
+  font-style: italic;
+}
+
+.sticky-del {
+  position: absolute; top: 10px; right: 10px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none;
+  color: rgba(0,0,0,.25); font-size: 14px;
+  cursor: pointer; border-radius: 50%; transition: all .2s;
+  opacity: 0;
+}
+.sticky:hover .sticky-del { opacity: 1; }
+.sticky-del:hover { background: rgba(0,0,0,.1); color: rgba(0,0,0,.6); }
+
+/* Alarm active indicator */
+.sticky-alarm {
+  position: absolute; bottom: 10px; right: 12px;
+  font-size: 14px;
+  animation: ringBell .5s ease infinite alternate;
+}
+@keyframes ringBell { from{transform:rotate(-10deg)} to{transform:rotate(10deg)} }
+
+/* Add reminder modal */
+.modal-backdrop {
+  display: none;
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(26,20,16,.5);
+  backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+.modal-backdrop.open { display: flex; animation: fadeIn .2s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.modal {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  padding: 36px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 6px 6px 0 var(--ink);
+  animation: modalIn .3s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes modalIn { from{transform:scale(.85);opacity:0} to{transform:scale(1);opacity:1} }
+
+.modal h3 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 22px; margin-bottom: 24px;
+}
+
+.modal-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+
+.modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.btn-row { display: flex; gap: 10px; }
+.btn-cancel {
+  flex: 1; background: transparent; border: 1px solid var(--rule);
+  color: var(--ink2); border-radius: 8px; padding: 12px;
+  font-family: inherit; font-size: 14px; cursor: pointer; transition: all .2s;
+}
+.btn-cancel:hover { border-color: var(--ink2); }
+.btn-save {
+  flex: 1; background: var(--accent); border: none; color: #fff;
+  border-radius: 8px; padding: 12px;
+  font-family: 'DM Serif Display', serif; font-size: 16px;
+  cursor: pointer; transition: all .2s;
+}
+.btn-save:hover { background: #a83a20; }
+
+/* ── EXPORT BAR ── */
+.export-bar {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 28px;
+  align-items: center;
+}
+.export-bar-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--ink3); margin-right: 6px;
+}
+.btn-export {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 8px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .2s; border: 1.5px solid;
+  text-decoration: none;
+}
+.btn-export-ics {
+  background: var(--ink); color: var(--cream);
+  border-color: var(--ink);
+}
+.btn-export-ics:hover { background: var(--ink2); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.btn-export-gcal {
+  background: #fff; color: #1a73e8;
+  border-color: #dadce0;
+}
+.btn-export-gcal:hover { background: #f8f9fa; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(26,115,232,.15); }
+.btn-export-pdf {
+  background: #fce8e4; color: var(--accent);
+  border-color: var(--accent2);
+}
+.btn-export-pdf:hover { background: var(--accent); color: #fff; transform: translateY(-1px); }
+
+/* gcal event link on blocks */
+.gcal-link {
+  display: none;
+  position: absolute; bottom: 5px; right: 6px;
+  font-size: 9px; background: rgba(255,255,255,.8);
+  color: #1a73e8; border-radius: 4px; padding: 2px 5px;
+  text-decoration: none; font-weight: 600;
+  border: 1px solid rgba(26,115,232,.2);
+  transition: all .15s;
+}
+.event-block:hover .gcal-link { display: block; }
+.gcal-link:hover { background: #1a73e8; color: #fff; }
+
+/* Notification toast */
+.toast {
+  position: fixed; bottom: 30px; right: 30px; z-index: 9000;
+  background: var(--ink); color: var(--cream);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px; padding: 16px 22px;
+  max-width: 320px;
+  display: none;
+  animation: toastIn .4s cubic-bezier(.34,1.56,.64,1) both;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+.toast.show { display: block; }
+@keyframes toastIn { from{transform:translateX(40px);opacity:0} to{transform:translateX(0);opacity:1} }
+.toast-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.toast-body  { font-size: 12px; opacity: .7; }
+
+
+/* ══ FEEDBACK POPUP ══ */
+.fb-overlay {
+  display:none; position:fixed; inset:0; z-index:3000;
+  background:rgba(26,20,16,.55); backdrop-filter:blur(6px);
+  align-items:center; justify-content:center; padding:20px;
+}
+.fb-overlay.open { display:flex; animation:fbIn .25s ease; }
+@keyframes fbIn { from{opacity:0} to{opacity:1} }
+
+.fb-card {
+  background:var(--paper);
+  border:2px solid var(--ink);
+  border-radius:24px;
+  width:100%; max-width:520px;
+  box-shadow:6px 6px 0 var(--ink);
+  animation:fbCardIn .4s cubic-bezier(.34,1.56,.64,1) both;
+  overflow:hidden;
+}
+@keyframes fbCardIn { from{transform:scale(.85) translateY(30px);opacity:0} to{transform:none;opacity:1} }
+
+.fb-top {
+  background:var(--ink); color:var(--cream);
+  padding:24px 28px 20px;
+  position:relative;
+}
+.fb-top-label {
+  font-family:'Geist Mono',monospace;
+  font-size:10px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--accent2); margin-bottom:8px;
+}
+.fb-top h2 {
+  font-family:'DM Serif Display',serif;
+  font-size:22px; line-height:1.2;
+}
+.fb-close {
+  position:absolute; top:16px; right:18px;
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15);
+  color:var(--cream); border-radius:50%;
+  width:30px; height:30px; font-size:16px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all .2s;
+}
+.fb-close:hover { background:rgba(255,255,255,.2); }
+
+.fb-progress {
+  height:3px; background:rgba(255,255,255,.12);
+  position:absolute; bottom:0; left:0; right:0;
+}
+.fb-progress-fill {
+  height:100%; background:var(--accent);
+  transition:width .4s ease;
+}
+
+.fb-body { padding:24px 28px 28px; }
+
+/* Steps */
+.fb-step { display:none; }
+.fb-step.active { display:block; animation:stepIn .3s ease both; }
+@keyframes stepIn { from{opacity:0;transform:translateX(14px)} to{opacity:1;transform:none} }
+
+.fb-question { font-size:14px; font-weight:600; color:var(--ink); margin-bottom:14px; line-height:1.4; }
+
+/* Stars */
+.star-row { display:flex; gap:8px; margin-bottom:4px; }
+.star-btn {
+  font-size:34px; background:none; border:none; cursor:pointer;
+  transition:transform .15s; filter:grayscale(1); opacity:.35;
+  padding:0;
+}
+.star-btn.on { filter:none; opacity:1; }
+.star-btn:hover { transform:scale(1.2); filter:none; opacity:.8; }
+.star-hint { font-size:11px; color:var(--ink3); min-height:16px; transition:all .2s; }
+
+/* Option pills */
+.fb-pills { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:6px; }
+.fb-pill {
+  font-size:13px; padding:7px 14px; border-radius:20px;
+  border:1.5px solid var(--rule); background:var(--cream);
+  cursor:pointer; transition:all .15s; color:var(--ink2); user-select:none;
+}
+.fb-pill.on { background:var(--ink); color:var(--cream); border-color:var(--ink); }
+.fb-pill:hover:not(.on) { border-color:var(--ink3); color:var(--ink); }
+
+/* Textarea */
+.fb-ta {
+  width:100%; background:var(--cream); border:1.5px solid var(--rule);
+  border-radius:10px; padding:11px 14px;
+  font-family:'Instrument Sans',sans-serif; font-size:13px; color:var(--ink);
+  resize:vertical; min-height:90px; transition:border-color .2s;
+}
+.fb-ta:focus { outline:none; border-color:var(--accent); }
+
+/* Nav buttons */
+.fb-nav { display:flex; justify-content:space-between; align-items:center; margin-top:22px; }
+.btn-fb-back {
+  background:transparent; border:1.5px solid var(--rule);
+  color:var(--ink3); border-radius:10px; padding:10px 20px;
+  font-family:inherit; font-size:14px; cursor:pointer; transition:all .2s;
+}
+.btn-fb-back:hover { border-color:var(--ink3); color:var(--ink); }
+.btn-fb-next {
+  background:var(--ink); color:var(--cream); border:none;
+  border-radius:10px; padding:11px 26px;
+  font-family:'DM Serif Display',serif; font-size:16px;
+  cursor:pointer; transition:all .2s;
+}
+.btn-fb-next:hover { background:var(--accent); }
+.btn-fb-next:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Step counter */
+.fb-step-counter {
+  font-family:'Geist Mono',monospace; font-size:11px; color:var(--ink3);
+}
+
+/* Success */
+.fb-success {
+  text-align:center; padding:12px 0 4px;
+}
+.fb-success .fs-emoji { font-size:48px; margin-bottom:14px; }
+.fb-success h3 { font-family:'DM Serif Display',serif; font-size:22px; margin-bottom:8px; }
+.fb-success p  { font-size:13px; color:var(--ink3); line-height:1.65; max-width:340px; margin:0 auto; }
+
+/* Days selector for delay */
+.delay-selector {
+  position:fixed; bottom:28px; right:28px; z-index:2000;
+  background:var(--ink); color:var(--cream); border-radius:14px;
+  padding:14px 18px; font-size:13px;
+  display:none; align-items:center; gap:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.3);
+  animation:toastUp .4s cubic-bezier(.34,1.56,.64,1) both;
+}
+.delay-selector.show { display:flex; }
+@keyframes toastUp { from{transform:translateY(20px);opacity:0} to{transform:none;opacity:1} }
+.delay-select {
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2);
+  color:var(--cream); border-radius:6px; padding:5px 10px;
+  font-family:inherit; font-size:13px; cursor:pointer;
+}
+.btn-delay-ok {
+  background:var(--accent); color:#fff; border:none;
+  border-radius:8px; padding:6px 14px; font-family:inherit; font-size:13px;
+  font-weight:600; cursor:pointer;
+}
+
+@media print {
+  body::after { display: none; }
+  header, .sidebar, .export-bar, .btn-add-reminder, .sticky-del, .modal-backdrop, .toast { display: none !important; }
+  .shell { grid-template-columns: 1fr; }
+  .main { max-height: none; overflow: visible; }
+  .schedule-view { padding: 20px; }
+  .analysis-pill { background: #111 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .week-grid { font-size: 10px; }
+  .sticky { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .reminders-board { grid-template-columns: repeat(3,1fr); }
+  .gcal-link { display: none !important; }
+}
+@media(max-width:768px){
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { max-height: none; position: static; }
+  .main { max-height: none; }
+  .stats-row { grid-template-columns: repeat(2,1fr); }
+  .week-grid { grid-template-columns: 50px repeat(3,1fr); }
+  .schedule-view { padding: 24px 20px; }
+  .reminders-board { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- HEADER -->
+<header>
+  <div class="logo-wrap">
+    <div class="logo-text">PlanIA</div>
+    <div class="logo-sub">v2.0 · IA académica</div>
+  </div>
+  <div class="header-time">
+    <div class="status-dot"></div>
+    <span id="live-time">—</span>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+
+  <!-- KEY BANNER -->
+  <div id="key-banner" style="background:#fce8e4;border:1.5px solid #c84b2f;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+    <div style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#c84b2f;margin-bottom:8px">🔑 Activa la IA</div>
+    <p style="font-size:12px;color:#3d3530;line-height:1.55;margin-bottom:8px">Necesitas una API key de Anthropic. Es gratis registrarse y los primeros créditos son gratuitos.</p>
+    <a href="https://console.anthropic.com" target="_blank" style="font-size:12px;font-weight:700;color:#c84b2f;text-decoration:underline">Obtener key gratuita →</a>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">00 · Activar IA</div>
+    <div class="field">
+      <label>Tu API Key de Anthropic</label>
+      <input type="password" id="f-apikey" placeholder="sk-ant-api03-..." oninput="checkKey()">
+      <div id="key-status" style="font-size:11px;margin-top:5px;color:var(--ink3)">Ingresa tu key para activar la IA</div>
+    </div>
+    <p style="font-size:11px;color:var(--ink3);line-height:1.5;margin-top:8px">Tu key se guarda solo en tu navegador (localStorage). Nadie más la ve.</p>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">01 · Tu perfil</div>
+    <div class="field">
+      <label>Año de carrera</label>
+      <select id="f-anio">
+        <option value="1">1° año</option>
+        <option value="2">2° año</option>
+        <option value="3" selected>3° año</option>
+        <option value="4">4° año</option>
+        <option value="5">5° año</option>
+        <option value="6">6°+ año</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Horas de sueño habituales</label>
+      <select id="f-sueno">
+        <option value="menos6">Menos de 6 horas ⚠</option>
+        <option value="6-7" selected>6–7 horas</option>
+        <option value="7-8">7–8 horas ✓</option>
+        <option value="mas8">Más de 8 horas</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Horas libres para estudiar / día</label>
+      <select id="f-horas">
+        <option value="1">1 hora</option>
+        <option value="2" selected>2 horas</option>
+        <option value="3">3 horas</option>
+        <option value="4">4 horas</option>
+        <option value="5">5+ horas</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Momento preferido</label>
+      <select id="f-momento">
+        <option value="mañana">Mañana (7–12h)</option>
+        <option value="tarde" selected>Tarde (13–18h)</option>
+        <option value="noche">Noche (19–23h)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Mayor distractor</label>
+      <select id="f-distractor">
+        <option value="celular">Celular / Redes sociales</option>
+        <option value="ruido">Ruido del entorno</option>
+        <option value="motivacion">Falta de motivación</option>
+        <option value="cansancio">Cansancio</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">02 · Ramos y tareas</div>
+    <div class="field">
+      <label>Ramos este semestre (Enter para agregar)</label>
+      <div class="tag-box" id="ramos-box" onclick="document.getElementById('ramos-inp').focus()">
+        <input class="tag-inner-input" id="ramos-inp" placeholder="Ej: Estadística…" onkeydown="addTag(event,'ramos')">
+      </div>
+    </div>
+    <div class="field">
+      <label>Entregas próximas (Enter para agregar)</label>
+      <div class="tag-box" id="tareas-box" onclick="document.getElementById('tareas-inp').focus()">
+        <input class="tag-inner-input" id="tareas-inp" placeholder="Ej: Informe semana 3…" onkeydown="addTag(event,'tareas')">
+      </div>
+    </div>
+    <div class="field">
+      <label>Contexto extra (opcional)</label>
+      <textarea id="f-extra" placeholder="Trabajo por las tardes, tengo práctica deportiva…"></textarea>
+    </div>
+  </div>
+
+  <button class="btn-gen" id="btn-gen" onclick="generate()">
+    ✦ Generar horario + recordatorios
+  </button>
+
+</aside>
+
+<!-- MAIN -->
+<main class="main" id="main-area">
+
+  <!-- Empty state -->
+  <div class="empty-state" id="empty-state">
+    <div class="empty-illustration">
+      <div class="nb-page">
+        <div class="nb-line"></div>
+        <div class="nb-line"></div>
+        <div class="nb-line"></div>
+        <div class="nb-line"></div>
+        <div class="nb-line"></div>
+        <div class="nb-line"></div>
+        <div class="nb-dot"></div>
+      </div>
+    </div>
+    <h2>Tu semana está en blanco</h2>
+    <p>Completa tu perfil y la IA generará un horario personalizado con recordatorios visuales pegados en tu agenda.</p>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-wrap" id="loading-wrap">
+    <div class="loading-pen">✏️</div>
+    <div class="loading-txt" id="loading-txt">Analizando tu perfil…</div>
+    <div class="loading-sub">LA IA ESTÁ ESCRIBIENDO TU SEMANA</div>
+  </div>
+
+  <!-- Schedule view -->
+  <div class="schedule-view" id="schedule-view">
+
+    <!-- Export / Sync bar -->
+    <div class="export-bar" id="export-bar">
+      <span class="export-bar-label">Exportar / Sincronizar →</span>
+      <button class="btn-export btn-export-ics" onclick="exportICS()">
+        <span>📅</span> Descargar .ics
+      </button>
+      <button class="btn-export btn-export-gcal" onclick="exportAllGCal()">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Agregar a Google Calendar
+      </button>
+      <button class="btn-export btn-export-pdf" onclick="printSchedule()">
+        <span>🖨️</span> Imprimir / PDF
+      </button>
+    </div>
+
+    <!-- Analysis -->
+    <div class="analysis-pill">
+      <div class="analysis-icon">🤖</div>
+      <div>
+        <div class="analysis-title">Análisis IA</div>
+        <div class="analysis-text" id="ai-text">—</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-n" id="st-horas">—</div><div class="stat-lbl">horas de estudio / semana</div></div>
+      <div class="stat-box"><div class="stat-n" id="st-bloques">—</div><div class="stat-lbl">bloques programados</div></div>
+      <div class="stat-box"><div class="stat-n" id="st-tareas">—</div><div class="stat-lbl">entregas incluidas</div></div>
+      <div class="stat-box"><div class="stat-n" id="st-libre">—</div><div class="stat-lbl">horas libres / semana</div></div>
+    </div>
+
+    <!-- Week grid -->
+    <div class="sched-label">HORARIO SEMANAL</div>
+    <div class="week-grid" id="week-grid">
+      <!-- filled by JS -->
+    </div>
+
+    <!-- Reminders -->
+    <div class="reminders-header">
+      <div class="sched-label" style="margin:0">RECORDATORIOS VISUALES</div>
+      <button class="btn-add-reminder" onclick="openModal()">+ Agregar</button>
+    </div>
+    <div class="reminders-board" id="reminders-board">
+      <!-- sticky notes filled by JS -->
+    </div>
+
+  </div>
+</main>
+
+</div><!-- /shell -->
+
+<!-- ADD REMINDER MODAL -->
+<div class="modal-backdrop" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>Agregar recordatorio</h3>
+    <div class="modal-fields">
+      <div class="field">
+        <label>¿Qué recordar?</label>
+        <input id="m-text" placeholder="Ej: Estudiar para la prueba de Cálculo">
+      </div>
+      <div class="modal-row">
+        <div class="field">
+          <label>Día</label>
+          <select id="m-dia">
+            <option>Lunes</option><option>Martes</option><option>Miércoles</option>
+            <option>Jueves</option><option>Viernes</option><option>Sábado</option><option>Domingo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Hora</label>
+          <input type="time" id="m-hora" value="09:00">
+        </div>
+      </div>
+      <div class="field">
+        <label>Ramo / Contexto</label>
+        <input id="m-subject" placeholder="Ej: Estadística">
+      </div>
+      <div class="field">
+        <label>Color de nota</label>
+        <select id="m-color">
+          <option value="sticky-yellow">🟡 Amarillo</option>
+          <option value="sticky-green">🟢 Verde</option>
+          <option value="sticky-blue">🔵 Azul</option>
+          <option value="sticky-pink">🩷 Rosa</option>
+          <option value="sticky-orange">🟠 Naranja</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveReminder()">Guardar nota</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toast-title">⏰ Recordatorio</div>
+  <div class="toast-body" id="toast-body">—</div>
+</div>
+
+<script>
+// ── GLOBALS ──
+const tags = { ramos: [], tareas: [] };
+let userApiKey = localStorage.getItem('planai_apikey') || '';
+
+function checkKey() {
+  const input = document.getElementById('f-apikey');
+  userApiKey = input.value.trim();
+  const status = document.getElementById('key-status');
+  const banner = document.getElementById('key-banner');
+  if (userApiKey.startsWith('sk-ant-')) {
+    localStorage.setItem('planai_apikey', userApiKey);
+    status.textContent = '✅ Key válida — IA activada';
+    status.style.color = '#3a7d44';
+    banner.style.display = 'none';
+  } else if (userApiKey.length > 5) {
+    status.textContent = '⚠️ Formato incorrecto (debe empezar con sk-ant-)';
+    status.style.color = '#c84b2f';
+  } else {
+    status.textContent = 'Ingresa tu key para activar la IA';
+    status.style.color = 'var(--ink3)';
+  }
+}
+let reminders = JSON.parse(localStorage.getItem('planai_reminders') || '[]');
+let alarmChecks = {};
+
+// ── CLOCK ──
+function updateClock() {
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  const s = now.getSeconds().toString().padStart(2,'0');
+  document.getElementById('live-time').textContent = `${h}:${m}:${s}`;
+  checkAlarms(now);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── TAGS ──
+function addTag(e, key) {
+  if (e.key !== 'Enter' || !e.target.value.trim()) return;
+  e.preventDefault();
+  const val = e.target.value.trim();
+  tags[key].push(val);
+  const pill = document.createElement('div');
+  pill.className = 'tag-pill';
+  const idx = tags[key].length - 1;
+  pill.innerHTML = `${val} <span class="rm" onclick="removeTag(${idx},'${key}',this)">✕</span>`;
+  const box = document.getElementById(key + '-box');
+  box.insertBefore(pill, e.target);
+  e.target.value = '';
+}
+function removeTag(idx, key, el) {
+  tags[key].splice(idx, 1);
+  el.parentElement.remove();
+}
+
+// ── GENERATE ──
+async function generate() {
+  if (!userApiKey || !userApiKey.startsWith('sk-ant-')) {
+    document.getElementById('f-apikey').focus();
+    document.getElementById('key-status').textContent = '⚠️ Ingresa tu API key primero';
+    document.getElementById('key-status').style.color = '#c84b2f';
+    showToast('🔑 Key requerida', 'Ingresa tu API key de Anthropic para activar la IA.');
+    return;
+  }
+  const btn = document.getElementById('btn-gen');
+  btn.disabled = true; btn.textContent = '✦ Generando…';
+
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('schedule-view').classList.remove('active');
+  const loader = document.getElementById('loading-wrap');
+  loader.classList.add('active');
+
+  const msgs = ['Analizando tu perfil…','Diseñando tu semana ideal…','Creando recordatorios personalizados…','Optimizando bloques de estudio…'];
+  let mi = 0;
+  const txtEl = document.getElementById('loading-txt');
+  const msgInt = setInterval(() => { txtEl.textContent = msgs[mi++ % msgs.length]; }, 2000);
+
+  const p = {
+    anio: document.getElementById('f-anio').value,
+    sueno: document.getElementById('f-sueno').value,
+    horas: document.getElementById('f-horas').value,
+    momento: document.getElementById('f-momento').value,
+    distractor: document.getElementById('f-distractor').value,
+    ramos: tags.ramos,
+    tareas: tags.tareas,
+    extra: document.getElementById('f-extra').value,
+  };
+
+  const prompt = `Eres un experto en productividad académica universitaria. Genera un plan semanal completo para este estudiante:
+
+PERFIL:
+- Año: ${p.anio}
+- Sueño: ${p.sueno}  
+- Horas disponibles/día: ${p.horas}
+- Momento preferido: ${p.momento}
+- Distractor principal: ${p.distractor}
+- Ramos: ${p.ramos.length ? p.ramos.join(', ') : 'no especificados'}
+- Entregas próximas: ${p.tareas.length ? p.tareas.join(', ') : 'ninguna'}
+- Extra: ${p.extra || 'ninguno'}
+
+Responde SOLO con JSON válido (sin markdown):
+{
+  "analisis": "2-3 oraciones explicando el perfil y la estrategia elegida",
+  "stats": {"horas_semana": número, "bloques": número, "tareas": número, "libre": número},
+  "eventos": [
+    {"dia": "Lun|Mar|Mié|Jue|Vie", "hora_inicio": "HH:MM", "hora_fin": "HH:MM", "tipo": "study|task|break|sleep", "titulo": "texto", "sub": "detalle"}
+  ],
+  "recordatorios": [
+    {"texto": "mensaje de recordatorio concreto", "dia": "Lunes|Martes|Miércoles|Jueves|Viernes|Sábado", "hora": "HH:MM", "ramo": "ramo o contexto", "color": "sticky-yellow|sticky-green|sticky-blue|sticky-pink|sticky-orange"}
+  ]
+}
+
+Genera al menos 12 eventos distribuidos en la semana y 5-6 recordatorios concretos y útiles. Los recordatorios deben ser específicos a los ramos y tareas del estudiante.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': userApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.content.map(c => c.text || '').join('');
+    const plan = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    clearInterval(msgInt);
+    render(plan);
+  } catch(err) {
+    clearInterval(msgInt);
+    render(getDemo(p));
+  }
+
+  btn.disabled = false; btn.textContent = '✦ Generar horario + recordatorios';
+}
+
+// ── DEMO FALLBACK ──
+function getDemo(p) {
+  const r = p.ramos.length ? p.ramos : ['Ramo principal','Ramo secundario'];
+  const t = p.tareas.length ? p.tareas : ['Entrega próxima'];
+  const h = p.momento === 'mañana' ? '09' : p.momento === 'tarde' ? '14' : '19';
+  const h2 = p.momento === 'mañana' ? '10' : p.momento === 'tarde' ? '15' : '20';
+  const h3 = p.momento === 'mañana' ? '11' : p.momento === 'tarde' ? '16' : '21';
+  return {
+    analisis: `Tu perfil indica que estudias mejor ${p.momento === 'mañana' ? 'en las mañanas' : p.momento === 'tarde' ? 'en las tardes' : 'en las noches'} con ${p.horas} horas disponibles al día. El horario está diseñado para maximizar tu concentración en ese horario y proteger tu tiempo de descanso, incorporando pausas estratégicas para contrarrestar el cansancio acumulado.`,
+    stats: { horas_semana: parseInt(p.horas) * 5, bloques: parseInt(p.horas) * 5, tareas: t.length, libre: 12 },
+    eventos: [
+      {dia:'Lun', hora_inicio:`${h}:00`, hora_fin:`${h}:50`, tipo:'study', titulo:r[0], sub:'Repaso de apuntes'},
+      {dia:'Lun', hora_inicio:`${h}:50`, hora_fin:`${h2}:00`, tipo:'break', titulo:'Descanso activo', sub:'Sin pantallas'},
+      {dia:'Lun', hora_inicio:`${h2}:00`, hora_fin:`${h2}:50`, tipo:'study', titulo:r[1]||r[0], sub:'Ejercicios prácticos'},
+      {dia:'Mar', hora_inicio:`${h}:00`, hora_fin:`${h}:50`, tipo:'task', titulo:t[0], sub:'Alta prioridad'},
+      {dia:'Mar', hora_inicio:`${h}:50`, hora_fin:`${h2}:00`, tipo:'break', titulo:'Pausa', sub:'Caminar 10 min'},
+      {dia:'Mar', hora_inicio:`${h2}:00`, hora_fin:`${h2}:50`, tipo:'study', titulo:r[0], sub:'Profundizar'},
+      {dia:'Mié', hora_inicio:`${h}:00`, hora_fin:`${h}:50`, tipo:'study', titulo:r[1]||r[0], sub:'Lectura'},
+      {dia:'Mié', hora_inicio:`${h2}:00`, hora_fin:`${h3}:00`, tipo:'study', titulo:'Repaso integrado', sub:'Todos los ramos'},
+      {dia:'Jue', hora_inicio:`${h}:00`, hora_fin:`${h}:50`, tipo:'task', titulo:t[1]||t[0], sub:'Avance'},
+      {dia:'Jue', hora_inicio:`${h2}:00`, hora_fin:`${h2}:50`, tipo:'study', titulo:r[0], sub:'Preparación prueba'},
+      {dia:'Vie', hora_inicio:`${h}:00`, hora_fin:`${h}:50`, tipo:'study', titulo:'Repaso semanal', sub:'Consolida lo aprendido'},
+      {dia:'Vie', hora_inicio:`${h2}:00`, hora_fin:`${h2}:30`, tipo:'break', titulo:'Planificación próx. semana', sub:'15 min'},
+    ],
+    recordatorios: [
+      {texto:`Estudiar ${r[0]} HOY — 50 min sin celular`, dia:'Lunes', hora:`${h}:00`, ramo:r[0], color:'sticky-yellow'},
+      {texto:`Entregar: ${t[0]}`, dia:'Martes', hora:`${h}:00`, ramo:'Prioridad alta', color:'sticky-pink'},
+      {texto:'Modo avión mientras estudias 📵', dia:'Miércoles', hora:`${h}:00`, ramo:'Anti-distracción', color:'sticky-orange'},
+      {texto:`Repasar apuntes de ${r[1]||r[0]} antes del jueves`, dia:'Miércoles', hora:'20:00', ramo:r[1]||r[0], color:'sticky-green'},
+      {texto:'Revisar todo lo de esta semana', dia:'Viernes', hora:`${h}:00`, ramo:'Repaso final', color:'sticky-blue'},
+      {texto:'Planifica tu próxima semana 📋', dia:'Viernes', hora:'18:00', ramo:'Organización', color:'sticky-yellow'},
+    ]
+  };
+}
+
+// ── RENDER ──
+const DAYS = ['Lun','Mar','Mié','Jue','Vie'];
+const HOURS = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00'];
+
+function timeToRow(t) {
+  const [h, m] = t.split(':').map(Number);
+  return (h - 7) * 2 + Math.floor(m / 30); // each row = 30min
+}
+
+function render(plan) {
+  // texts
+  document.getElementById('ai-text').textContent = plan.analisis;
+  document.getElementById('st-horas').textContent = plan.stats.horas_semana;
+  document.getElementById('st-bloques').textContent = plan.stats.bloques;
+  document.getElementById('st-tareas').textContent = plan.stats.tareas;
+  document.getElementById('st-libre').textContent = plan.stats.libre;
+
+  // Build week grid (simple version: one block per hour slot)
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = '';
+
+  const todayIdx = new Date().getDay() - 1; // 0=Mon
+
+  // Headers
+  const emptyH = document.createElement('div');
+  emptyH.className = 'wg-header wg-time-col';
+  emptyH.textContent = '';
+  grid.appendChild(emptyH);
+
+  DAYS.forEach((d, i) => {
+    const h = document.createElement('div');
+    h.className = `wg-header${i === todayIdx ? ' today-col' : ''}`;
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+
+  // Build event map: day -> hour -> event
+  const evMap = {};
+  DAYS.forEach(d => evMap[d] = {});
+  (plan.eventos || []).forEach(ev => {
+    const [h] = ev.hora_inicio.split(':');
+    if (!evMap[ev.dia]) return;
+    evMap[ev.dia][parseInt(h)] = ev;
+  });
+
+  // Rows
+  HOURS.forEach(timeStr => {
+    const [h] = timeStr.split(':').map(Number);
+    const timeCell = document.createElement('div');
+    timeCell.className = 'wg-cell time-cell';
+    timeCell.textContent = timeStr;
+    grid.appendChild(timeCell);
+
+    DAYS.forEach(d => {
+      const cell = document.createElement('div');
+      cell.className = 'wg-cell';
+      const ev = evMap[d][h];
+      if (ev) {
+        const block = document.createElement('div');
+        const cls = ev.tipo === 'study' ? 'ev-study' : ev.tipo === 'task' ? 'ev-task' : ev.tipo === 'break' ? 'ev-break' : 'ev-sleep';
+        block.className = `event-block ${cls}`;
+        block.innerHTML = `<div class="ev-time">${ev.hora_inicio}–${ev.hora_fin}</div><div class="ev-title">${ev.titulo}</div>${ev.sub ? `<div class="ev-sub">${ev.sub}</div>` : ''}`;
+        cell.appendChild(block);
+      }
+      grid.appendChild(cell);
+    });
+  });
+
+  // Reminders — merge AI ones with saved ones
+  const aiReminders = (plan.recordatorios || []).map(r => ({...r, id: Date.now() + Math.random(), fromAI: true}));
+  const allReminders = [...aiReminders, ...reminders];
+  reminders = allReminders;
+  localStorage.setItem('planai_reminders', JSON.stringify(reminders.filter(r => !r.fromAI)));
+  renderReminders(allReminders);
+
+  // Show
+  document.getElementById('loading-wrap').classList.remove('active');
+  const sv = document.getElementById('schedule-view');
+  sv.classList.add('active');
+}
+
+function renderReminders(list) {
+  const board = document.getElementById('reminders-board');
+  board.innerHTML = '';
+  list.forEach((r, i) => {
+    const now = new Date();
+    const [rh, rm] = r.hora.split(':').map(Number);
+    const isNear = Math.abs(now.getHours() - rh) === 0 && Math.abs(now.getMinutes() - rm) < 60;
+
+    const note = document.createElement('div');
+    note.className = `sticky ${r.color || 'sticky-yellow'}`;
+    note.style.animationDelay = `${i * 0.08}s`;
+    note.innerHTML = `
+      <button class="sticky-del" onclick="deleteReminder(${i})">✕</button>
+      <div class="sticky-time">📅 ${r.dia} · ⏰ ${r.hora}</div>
+      <div class="sticky-content">${r.texto}</div>
+      <div class="sticky-subject">${r.ramo || ''}</div>
+      ${isNear ? '<div class="sticky-alarm">🔔</div>' : ''}
+    `;
+    board.appendChild(note);
+  });
+}
+
+function deleteReminder(idx) {
+  reminders.splice(idx, 1);
+  localStorage.setItem('planai_reminders', JSON.stringify(reminders.filter(r => !r.fromAI)));
+  renderReminders(reminders);
+}
+
+// ── MODAL ──
+function openModal() { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function saveReminder() {
+  const txt   = document.getElementById('m-text').value.trim();
+  const dia   = document.getElementById('m-dia').value;
+  const hora  = document.getElementById('m-hora').value;
+  const subj  = document.getElementById('m-subject').value.trim();
+  const color = document.getElementById('m-color').value;
+  if (!txt) return;
+
+  const r = { id: Date.now(), texto: txt, dia, hora, ramo: subj, color };
+  reminders.push(r);
+  localStorage.setItem('planai_reminders', JSON.stringify(reminders.filter(rm => !rm.fromAI)));
+  renderReminders(reminders);
+  closeModal();
+  document.getElementById('m-text').value = '';
+
+  showToast('📌 Recordatorio guardado', `${dia} a las ${hora}`);
+}
+
+// ── ALARMS ──
+function checkAlarms(now) {
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  const timeStr = `${h}:${m}`;
+  const dayNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const todayName = dayNames[now.getDay()];
+
+  reminders.forEach((r, i) => {
+    const key = `${r.id}-${timeStr}`;
+    if (r.hora === timeStr && r.dia === todayName && !alarmChecks[key]) {
+      alarmChecks[key] = true;
+      showToast(`⏰ ${r.dia} ${r.hora}`, r.texto);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`PlanIA · ${r.dia} ${r.hora}`, { body: r.texto });
+      }
+    }
+  });
+}
+
+// ── TOAST ──
+let toastTimeout;
+function showToast(title, body) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-body').textContent = body;
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 5000);
+}
+
+// ── ICS EXPORT ──
+let lastPlan = null; // store the rendered plan globally
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function getNextWeekday(dayName) {
+  // Returns a Date object for the next occurrence of the given weekday name (this week)
+  const map = {Lun:1,Mar:2,'Mié':3,Jue:4,Vie:5};
+  const target = map[dayName];
+  if (target == null) return null;
+  const now = new Date();
+  const current = now.getDay(); // 0=Sun,1=Mon...
+  let diff = target - current;
+  if (diff < 0) diff += 7;
+  const d = new Date(now);
+  d.setDate(now.getDate() + diff);
+  return d;
+}
+
+function toICSDate(d, timeStr) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const dt = new Date(d);
+  dt.setHours(h, m, 0, 0);
+  return `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(dt.getMinutes())}00`;
+}
+
+function escapeICS(s){ return (s||'').replace(/,/g,'\\,').replace(/;/g,'\\;').replace(/\n/g,'\\n'); }
+
+function exportICS() {
+  if (!lastPlan || !lastPlan.eventos || lastPlan.eventos.length === 0) {
+    showToast('⚠️ Sin horario', 'Genera primero tu horario antes de exportar.');
+    return;
+  }
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//PlanIA//ES',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-WR-CALNAME:PlanIA - Mi Horario Académico',
+    'X-WR-TIMEZONE:America/Santiago',
+  ];
+
+  lastPlan.eventos.forEach((ev, i) => {
+    const dayDate = getNextWeekday(ev.dia);
+    if (!dayDate) return;
+    const dtStart = toICSDate(dayDate, ev.hora_inicio || '09:00');
+    const dtEnd   = toICSDate(dayDate, ev.hora_fin   || '10:00');
+    const uid = `planai-ev-${i}-${Date.now()}@planai`;
+    const typeLabel = ev.tipo === 'study' ? '📚' : ev.tipo === 'task' ? '⚠️' : ev.tipo === 'break' ? '☕' : '💤';
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTAMP:${toICSDate(new Date(), `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`)}`,
+      `DTSTART:${dtStart}`,
+      `DTEND:${dtEnd}`,
+      `SUMMARY:${escapeICS(typeLabel + ' ' + ev.titulo)}`,
+      `DESCRIPTION:${escapeICS(ev.sub || '')}`,
+      'END:VEVENT'
+    );
+  });
+
+  // Also add reminders as all-day events with alarm
+  reminders.forEach((r, i) => {
+    const dayMap = {Lunes:1,Martes:2,'Miércoles':3,Jueves:4,Viernes:5,Sábado:6,Domingo:0};
+    const target = dayMap[r.dia];
+    if (target == null) return;
+    const now = new Date();
+    const diff = ((target - now.getDay()) + 7) % 7;
+    const d = new Date(now); d.setDate(now.getDate() + diff);
+    const dtStart = toICSDate(d, r.hora || '09:00');
+    const dtEnd   = toICSDate(d, r.hora ? `${String(parseInt(r.hora)+1).padStart(2,'0')}:00` : '10:00');
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:planai-rem-${i}-${Date.now()}@planai`,
+      `DTSTAMP:${toICSDate(new Date(), `${pad(new Date().getHours())}:${pad(new Date().getMinutes())}`)}`,
+      `DTSTART:${dtStart}`,
+      `DTEND:${dtEnd}`,
+      `SUMMARY:${escapeICS('🔔 ' + r.texto)}`,
+      `DESCRIPTION:${escapeICS(r.ramo || '')}`,
+      'BEGIN:VALARM',
+      'TRIGGER:-PT15M',
+      'ACTION:DISPLAY',
+      `DESCRIPTION:${escapeICS(r.texto)}`,
+      'END:VALARM',
+      'END:VEVENT'
+    );
+  });
+
+  lines.push('END:VCALENDAR');
+
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'PlanIA_horario.ics';
+  a.click(); URL.revokeObjectURL(url);
+
+  showToast('✅ Archivo descargado', 'Abre PlanIA_horario.ics para importar a Google Calendar, Outlook o Apple Calendar.');
+}
+
+// ── GOOGLE CALENDAR LINKS ──
+function buildGCalLink(title, desc, dayName, startTime, endTime) {
+  const dayDate = getNextWeekday(dayName);
+  if (!dayDate) return '#';
+  const dtStart = toICSDate(dayDate, startTime);
+  const dtEnd   = toICSDate(dayDate, endTime);
+  const base = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+  return `${base}&text=${encodeURIComponent(title)}&dates=${dtStart}/${dtEnd}&details=${encodeURIComponent(desc || '')}&sf=true&output=xml`;
+}
+
+function exportAllGCal() {
+  if (!lastPlan || !lastPlan.eventos || lastPlan.eventos.length === 0) {
+    showToast('⚠️ Sin horario', 'Genera primero tu horario antes de sincronizar.');
+    return;
+  }
+  // Open the first event as a demo and show instructions
+  const ev = lastPlan.eventos[0];
+  const url = buildGCalLink(ev.titulo, ev.sub, ev.dia, ev.hora_inicio, ev.hora_fin);
+  window.open(url, '_blank');
+  showToast('📅 Google Calendar', 'Se abrió el primer evento. Descarga el .ics para importar todos de una vez.');
+}
+
+// ── PRINT / PDF ──
+function printSchedule() {
+  window.print();
+}
+
+// Patch render() to also store lastPlan and add GCal links to blocks
+const _originalRender = render;
+render = function(plan) {
+  lastPlan = plan;
+  _originalRender(plan);
+  // After render, add GCal links to each event block
+  setTimeout(() => {
+    document.querySelectorAll('.event-block').forEach(block => {
+      const titleEl = block.querySelector('.ev-title');
+      const timeEl  = block.querySelector('.ev-time');
+      if (!titleEl || !timeEl) return;
+      const title = titleEl.textContent;
+      const times = (timeEl.textContent || '').split('–');
+      const start = times[0]?.trim() || '09:00';
+      const end   = times[1]?.trim() || '10:00';
+      // Find matching event
+      const ev = (plan.eventos || []).find(e => e.titulo === title);
+      if (!ev) return;
+      const link = document.createElement('a');
+      link.className = 'gcal-link';
+      link.href = buildGCalLink(title, ev.sub, ev.dia, start, end);
+      link.target = '_blank';
+      link.title = 'Agregar a Google Calendar';
+      link.innerHTML = '+ GCal';
+      block.style.position = 'relative'; // ensure positioning
+      block.appendChild(link);
+    });
+  }, 300);
+};
+
+
+// ══════════════════════════════════════
+// FEEDBACK POPUP SYSTEM
+// ══════════════════════════════════════
+
+// ⚙️  Configura con tus datos de Airtable
+const AIRTABLE_TOKEN   = 'TU_TOKEN_AQUI';
+const AIRTABLE_BASE_ID = 'TU_BASE_ID';
+const AIRTABLE_TABLE   = 'Feedback';
+
+// State
+let fbStarVal = 0;
+const fbAnswers = {};
+
+const starHints = ['', 'Muy mala 😞', 'Regular 😐', 'Buena 👍', 'Muy buena 😊', 'Excelente! 🌟'];
+
+function setStar(n) {
+  fbStarVal = n;
+  fbAnswers['Estrellas'] = n;
+  document.querySelectorAll('#star-row .star-btn').forEach((b, i) => {
+    b.classList.toggle('on', i < n);
+  });
+  document.getElementById('star-hint').textContent = starHints[n] || '';
+  document.getElementById('btn-s1-next').disabled = false;
+}
+
+function pick(el, groupId) {
+  document.querySelectorAll('#' + groupId + ' .fb-pill').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  fbAnswers[groupId] = el.textContent.trim();
+  const nextMap = { 'pills-siguio': 'btn-s2-next', 'pills-mejora': 'btn-s3-next', 'pills-recomienda': 'btn-s4-next' };
+  const nextBtn = document.getElementById(nextMap[groupId]);
+  if (nextBtn) nextBtn.disabled = false;
+}
+
+function fbGo(step) {
+  document.querySelectorAll('.fb-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('fb-s' + step).classList.add('active');
+  const titles = ['', '¿Cómo te ha ido\ncon el horario?', '¿Cuánto lo usaste?', '¿Notaste cambios?', '¿Lo recomendarías?', 'Último paso'];
+  document.getElementById('fb-top-title').innerHTML = (titles[step] || '').replace('\n', '<br>');
+  const pct = Math.round((step - 1) / 5 * 100);
+  document.getElementById('fb-prog').style.width = pct + '%';
+}
+
+function closeFb() {
+  document.getElementById('fb-overlay').classList.remove('open');
+}
+
+async function sendFb() {
+  const btn = document.getElementById('btn-s5-send');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const fields = {
+    'Estrellas'      : fbStarVal,
+    'Siguió horario' : fbAnswers['pills-siguio'] || '—',
+    'Mejora'         : fbAnswers['pills-mejora'] || '—',
+    'Recomendaría'   : fbAnswers['pills-recomienda'] || '—',
+    'Comentario'     : document.getElementById('fb-comment').value.trim(),
+    'Fecha'          : new Date().toISOString(),
+    'Tipo'           : 'Popup seguimiento',
+  };
+
+  if (AIRTABLE_TOKEN !== 'TU_TOKEN_AQUI') {
+    try {
+      await fetch(
+        `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE)}`,
+        {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + AIRTABLE_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields }),
+        }
+      );
+    } catch(e) { console.log('Airtable error:', e); }
+  } else {
+    console.log('📋 Feedback (modo demo):', fields);
+  }
+
+  localStorage.setItem('planai_fb_done', 'true');
+  document.getElementById('fb-prog').style.width = '100%';
+  document.querySelectorAll('.fb-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('fb-success').classList.add('active');
+  document.getElementById('fb-top-title').innerHTML = '¡Gracias por<br>tu opinión!';
+}
+
+// ── DELAY LOGIC ──
+function setDelay() {
+  const days = parseInt(document.getElementById('delay-days').value);
+  const triggerAt = Date.now() + days * 24 * 60 * 60 * 1000;
+  localStorage.setItem('planai_fb_trigger', triggerAt.toString());
+  localStorage.setItem('planai_first_use', Date.now().toString());
+  document.getElementById('delay-sel').classList.remove('show');
+  showToast('⏰ Recordatorio programado', `Te preguntaremos en ${days} día${days>1?'s':''} cómo te fue.`);
+}
+
+function checkFeedbackSchedule() {
+  const done = localStorage.getItem('planai_fb_done');
+  if (done) return;
+
+  const trigger = localStorage.getItem('planai_fb_trigger');
+  const firstUse = localStorage.getItem('planai_first_use');
+
+  if (!firstUse) {
+    // Primera visita — mostrar selector de delay después de 8 segundos
+    setTimeout(() => {
+      document.getElementById('delay-sel').classList.add('show');
+    }, 8000);
+    localStorage.setItem('planai_first_use', Date.now().toString());
+    return;
+  }
+
+  if (!trigger) return;
+
+  const now = Date.now();
+  if (now >= parseInt(trigger)) {
+    // Es hora de pedir feedback
+    setTimeout(() => {
+      document.getElementById('fb-overlay').classList.add('open');
+    }, 2500);
+  }
+}
+
+checkFeedbackSchedule();
+
+// ── INIT ──
+// Restore saved API key
+(function() {
+  const saved = localStorage.getItem('planai_apikey');
+  if (saved) {
+    const inp = document.getElementById('f-apikey');
+    if (inp) { inp.value = saved; checkKey(); }
+  }
+})();
+
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission();
+}
+
+// Show saved reminders even without a schedule
+if (reminders.length > 0) {
+  renderReminders(reminders);
+}
+</script>
+
+<!-- ══ FEEDBACK POPUP ══ -->
+<div class="fb-overlay" id="fb-overlay">
+  <div class="fb-card">
+    <div class="fb-top">
+      <div class="fb-top-label">✦ Seguimiento del proyecto</div>
+      <h2 id="fb-top-title">¿Cómo te ha ido<br>con el horario?</h2>
+      <button class="fb-close" onclick="closeFb()">✕</button>
+      <div class="fb-progress"><div class="fb-progress-fill" id="fb-prog" style="width:0%"></div></div>
+    </div>
+
+    <div class="fb-body">
+
+      <!-- STEP 1: Estrellas -->
+      <div class="fb-step active" id="fb-s1">
+        <div class="fb-question">¿Qué nota le pones a la app? (1 a 5 ⭐)</div>
+        <div class="star-row" id="star-row">
+          <button class="star-btn" onclick="setStar(1)">⭐</button>
+          <button class="star-btn" onclick="setStar(2)">⭐</button>
+          <button class="star-btn" onclick="setStar(3)">⭐</button>
+          <button class="star-btn" onclick="setStar(4)">⭐</button>
+          <button class="star-btn" onclick="setStar(5)">⭐</button>
+        </div>
+        <div class="star-hint" id="star-hint">Toca para calificar</div>
+        <div class="fb-nav">
+          <div class="fb-step-counter">1 / 5</div>
+          <button class="btn-fb-next" id="btn-s1-next" onclick="fbGo(2)" disabled>Siguiente →</button>
+        </div>
+      </div>
+
+      <!-- STEP 2: ¿Siguió el horario? -->
+      <div class="fb-step" id="fb-s2">
+        <div class="fb-question">¿Pudiste seguir el horario generado?</div>
+        <div class="fb-pills" id="pills-siguio">
+          <div class="fb-pill" onclick="pick(this,'pills-siguio')">Sí, varios días 💪</div>
+          <div class="fb-pill" onclick="pick(this,'pills-siguio')">Algunos días</div>
+          <div class="fb-pill" onclick="pick(this,'pills-siguio')">Solo uno</div>
+          <div class="fb-pill" onclick="pick(this,'pills-siguio')">Todavía no</div>
+        </div>
+        <div class="fb-nav">
+          <button class="btn-fb-back" onclick="fbGo(1)">← Atrás</button>
+          <div class="fb-step-counter">2 / 5</div>
+          <button class="btn-fb-next" id="btn-s2-next" onclick="fbGo(3)" disabled>Siguiente →</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: Estrés y notas -->
+      <div class="fb-step" id="fb-s3">
+        <div class="fb-question">¿Notaste algún cambio en tu estrés o rendimiento?</div>
+        <div class="fb-pills" id="pills-mejora">
+          <div class="fb-pill" onclick="pick(this,'pills-mejora')">Sí, menos estrés 😌</div>
+          <div class="fb-pill" onclick="pick(this,'pills-mejora')">Rendí mejor en clases</div>
+          <div class="fb-pill" onclick="pick(this,'pills-mejora')">Un poco de mejora</div>
+          <div class="fb-pill" onclick="pick(this,'pills-mejora')">Sin cambios aún</div>
+        </div>
+        <div class="fb-nav">
+          <button class="btn-fb-back" onclick="fbGo(2)">← Atrás</button>
+          <div class="fb-step-counter">3 / 5</div>
+          <button class="btn-fb-next" id="btn-s3-next" onclick="fbGo(4)" disabled>Siguiente →</button>
+        </div>
+      </div>
+
+      <!-- STEP 4: ¿Recomendarías? -->
+      <div class="fb-step" id="fb-s4">
+        <div class="fb-question">¿Recomendarías PlanIA a otros estudiantes?</div>
+        <div class="fb-pills" id="pills-recomienda">
+          <div class="fb-pill" onclick="pick(this,'pills-recomienda')">Sí, definitivamente 🙌</div>
+          <div class="fb-pill" onclick="pick(this,'pills-recomienda')">Probablemente</div>
+          <div class="fb-pill" onclick="pick(this,'pills-recomienda')">No estoy seguro/a</div>
+          <div class="fb-pill" onclick="pick(this,'pills-recomienda')">No</div>
+        </div>
+        <div class="fb-nav">
+          <button class="btn-fb-back" onclick="fbGo(3)">← Atrás</button>
+          <div class="fb-step-counter">4 / 5</div>
+          <button class="btn-fb-next" id="btn-s4-next" onclick="fbGo(5)" disabled>Siguiente →</button>
+        </div>
+      </div>
+
+      <!-- STEP 5: Comentario libre -->
+      <div class="fb-step" id="fb-s5">
+        <div class="fb-question">¿Algo que quieras compartir? (opcional)</div>
+        <textarea class="fb-ta" id="fb-comment" placeholder="¿Qué mejorarías? ¿Algo que te gustó? ¿Cómo impactó tu semana?..."></textarea>
+        <div class="fb-nav">
+          <button class="btn-fb-back" onclick="fbGo(4)">← Atrás</button>
+          <div class="fb-step-counter">5 / 5</div>
+          <button class="btn-fb-next" id="btn-s5-send" onclick="sendFb()">Enviar ✦</button>
+        </div>
+      </div>
+
+      <!-- SUCCESS -->
+      <div class="fb-step" id="fb-success">
+        <div class="fb-success">
+          <div class="fs-emoji">🎉</div>
+          <h3>¡Muchas gracias!</h3>
+          <p>Tu opinión es evidencia real del impacto del proyecto. Ayuda a mejorar la app para todos los estudiantes.</p>
+        </div>
+        <div class="fb-nav" style="justify-content:center;margin-top:20px">
+          <button class="btn-fb-next" onclick="closeFb()">Cerrar</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Delay selector (aparece en primera visita) -->
+<div class="delay-selector" id="delay-sel">
+  <span>⏰ Recordarme feedback en</span>
+  <select class="delay-select" id="delay-days">
+    <option value="1">1 día</option>
+    <option value="3" selected>3 días</option>
+    <option value="5">5 días</option>
+    <option value="7">1 semana</option>
+  </select>
+  <button class="btn-delay-ok" onclick="setDelay()">OK</button>
+</div>
+
+</body>
+</html>

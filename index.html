@@ -797,23 +797,6 @@ select option { background: var(--paper); }
 <!-- SIDEBAR -->
 <aside class="sidebar">
 
-  <!-- KEY BANNER -->
-  <div id="key-banner" style="background:#fce8e4;border:1.5px solid #c84b2f;border-radius:10px;padding:14px 16px;margin-bottom:20px">
-    <div style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#c84b2f;margin-bottom:8px">🔑 Activa la IA</div>
-    <p style="font-size:12px;color:#3d3530;line-height:1.55;margin-bottom:8px">Necesitas una API key de Anthropic. Es gratis registrarse y los primeros créditos son gratuitos.</p>
-    <a href="https://console.anthropic.com" target="_blank" style="font-size:12px;font-weight:700;color:#c84b2f;text-decoration:underline">Obtener key gratuita →</a>
-  </div>
-
-  <div class="sidebar-section">
-    <div class="sidebar-label">00 · Activar IA</div>
-    <div class="field">
-      <label>Tu API Key de Anthropic</label>
-      <input type="password" id="f-apikey" placeholder="sk-ant-api03-..." oninput="checkKey()">
-      <div id="key-status" style="font-size:11px;margin-top:5px;color:var(--ink3)">Ingresa tu key para activar la IA</div>
-    </div>
-    <p style="font-size:11px;color:var(--ink3);line-height:1.5;margin-top:8px">Tu key se guarda solo en tu navegador (localStorage). Nadie más la ve.</p>
-  </div>
-
   <div class="sidebar-section">
     <div class="sidebar-label">01 · Tu perfil</div>
     <div class="field">
@@ -1026,69 +1009,9 @@ select option { background: var(--paper); }
 <script>
 // ── GLOBALS ──
 const tags = { ramos: [], tareas: [] };
-let userApiKey = localStorage.getItem('planai_apikey') || '';
-
-function checkKey() {
-  const input = document.getElementById('f-apikey');
-  userApiKey = input.value.trim();
-  const status = document.getElementById('key-status');
-  const banner = document.getElementById('key-banner');
-  if (userApiKey.startsWith('sk-ant-')) {
-    localStorage.setItem('planai_apikey', userApiKey);
-    status.textContent = '✅ Key válida — IA activada';
-    status.style.color = '#3a7d44';
-    banner.style.display = 'none';
-  } else if (userApiKey.length > 5) {
-    status.textContent = '⚠️ Formato incorrecto (debe empezar con sk-ant-)';
-    status.style.color = '#c84b2f';
-  } else {
-    status.textContent = 'Ingresa tu key para activar la IA';
-    status.style.color = 'var(--ink3)';
-  }
-}
-let reminders = JSON.parse(localStorage.getItem('planai_reminders') || '[]');
-let alarmChecks = {};
-
-// ── CLOCK ──
-function updateClock() {
-  const now = new Date();
-  const h = now.getHours().toString().padStart(2,'0');
-  const m = now.getMinutes().toString().padStart(2,'0');
-  const s = now.getSeconds().toString().padStart(2,'0');
-  document.getElementById('live-time').textContent = `${h}:${m}:${s}`;
-  checkAlarms(now);
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-// ── TAGS ──
-function addTag(e, key) {
-  if (e.key !== 'Enter' || !e.target.value.trim()) return;
-  e.preventDefault();
-  const val = e.target.value.trim();
-  tags[key].push(val);
-  const pill = document.createElement('div');
-  pill.className = 'tag-pill';
-  const idx = tags[key].length - 1;
-  pill.innerHTML = `${val} <span class="rm" onclick="removeTag(${idx},'${key}',this)">✕</span>`;
-  const box = document.getElementById(key + '-box');
-  box.insertBefore(pill, e.target);
-  e.target.value = '';
-}
-function removeTag(idx, key, el) {
-  tags[key].splice(idx, 1);
-  el.parentElement.remove();
-}
 
 // ── GENERATE ──
 async function generate() {
-  if (!userApiKey || !userApiKey.startsWith('sk-ant-')) {
-    document.getElementById('f-apikey').focus();
-    document.getElementById('key-status').textContent = '⚠️ Ingresa tu API key primero';
-    document.getElementById('key-status').style.color = '#c84b2f';
-    showToast('🔑 Key requerida', 'Ingresa tu API key de Anthropic para activar la IA.');
-    return;
-  }
   const btn = document.getElementById('btn-gen');
   btn.disabled = true; btn.textContent = '✦ Generando…';
 
@@ -1140,22 +1063,35 @@ Responde SOLO con JSON válido (sin markdown):
 Genera al menos 12 eventos distribuidos en la semana y 5-6 recordatorios concretos y útiles. Los recordatorios deben ser específicos a los ramos y tareas del estudiante.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    // Backend Groq via Hugging Face Space
+    const HF_API = 'https://vicho-gomez-planai.hf.space/gradio_api/call/generar';
+
+    const triggerRes = await fetch(HF_API, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': userApiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [
+        p.anio, p.sueno, p.horas, p.momento, p.distractor,
+        p.estres, p.ramos.join(', '), p.tareas.join(', '), p.extra || ''
+      ]})
     });
-    const data = await res.json();
-    const raw = data.content.map(c => c.text || '').join('');
-    const plan = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    const trigger = await triggerRes.json();
+    const event_id = trigger.event_id;
+
+    // Esperar resultado
+    let plan = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      const pollRes = await fetch(HF_API + '/' + event_id);
+      const text = await pollRes.text();
+      const lines = text.split('\n').filter(l => l.startsWith('data:'));
+      if (lines.length >= 2) {
+        const parsed = JSON.parse(lines[lines.length - 1].replace('data: ', ''));
+        const raw = parsed[0].replace(/```json|```/g, '').trim();
+        plan = JSON.parse(raw);
+        break;
+      }
+    }
+    if (!plan) throw new Error('Sin respuesta del servidor');
     clearInterval(msgInt);
     render(plan);
   } catch(err) {
@@ -1645,15 +1581,6 @@ function checkFeedbackSchedule() {
 checkFeedbackSchedule();
 
 // ── INIT ──
-// Restore saved API key
-(function() {
-  const saved = localStorage.getItem('planai_apikey');
-  if (saved) {
-    const inp = document.getElementById('f-apikey');
-    if (inp) { inp.value = saved; checkKey(); }
-  }
-})();
-
 if ('Notification' in window && Notification.permission === 'default') {
   Notification.requestPermission();
 }
